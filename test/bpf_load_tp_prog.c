@@ -17,7 +17,7 @@
 #include <linux/bpf.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include "../helpers.h"
+#include <bpf_helpers.h>
 
 struct bpf_map_def SEC("maps") cpu_pid = {
         .type = BPF_MAP_TYPE_ARRAY,
