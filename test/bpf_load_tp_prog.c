@@ -19,13 +19,8 @@
 #include <stdint.h>
 #include <bpf_helpers.h>
 
-struct bpf_map_def SEC("maps") cpu_pid = {
-        .type = BPF_MAP_TYPE_ARRAY,
-        .key_size = sizeof(int),
-        .value_size = sizeof(uint32_t),
-        /* Assume max of 1024 CPUs */
-        .max_entries = 1024,
-};
+/* Assume max of 1024 CPUs */
+DEFINE_BPF_MAP(cpu_pid_map, ARRAY, int, uint32_t, 1024)
 
 struct switch_args {
     unsigned long long ignore;
@@ -46,7 +41,7 @@ int tp_sched_switch(struct switch_args* args) {
     key = bpf_get_smp_processor_id();
     val = args->next_pid;
 
-    bpf_map_update_elem(&cpu_pid, &key, &val, BPF_ANY);
+    bpf_cpu_pid_map_update_elem(&key, &val, BPF_ANY);
     return 0;
 }
 
