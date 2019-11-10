@@ -15,43 +15,18 @@
  */
 
 #include <bpf_helpers.h>
+#include <bpf_timeinstate.h>
 
-// Number of frequencies for which a UID's times can be tracked in a single map entry. If some CPUs
-// have more than 32 freqs available, a single UID is tracked using 2 or more entries.
-#define FREQS_PER_ENTRY 32
-// Number of distinct CPU counts for which a UID's concurrent time stats can be tracked in a single
-// map entry. On systems with more than 8 CPUs, a single UID is tracked using 2 or more entries.
-#define CPUS_PER_ENTRY 8
+DEFINE_BPF_MAP(uid_time_in_state_map, PERCPU_HASH, time_key_t, tis_val_t, 1024)
 
-typedef struct {
-    uint32_t uid;
-    uint32_t bucket;
-} time_key;
-
-typedef struct {
-    uint64_t ar[FREQS_PER_ENTRY];
-} time_in_state_val;
-
-DEFINE_BPF_MAP(uid_time_in_state_map, PERCPU_HASH, time_key, time_in_state_val, 1024)
-
-typedef struct {
-    uint64_t active[CPUS_PER_ENTRY];
-    uint64_t policy[CPUS_PER_ENTRY];
-} concurrent_val;
-
-DEFINE_BPF_MAP(uid_concurrent_times_map, PERCPU_HASH, time_key, concurrent_val, 1024)
+DEFINE_BPF_MAP(uid_concurrent_times_map, PERCPU_HASH, time_key_t, concurrent_val_t, 1024)
 
 DEFINE_BPF_MAP(cpu_last_update_map, PERCPU_ARRAY, uint32_t, uint64_t, 1)
 
 DEFINE_BPF_MAP(cpu_policy_map, ARRAY, uint32_t, uint32_t, 1024)
 DEFINE_BPF_MAP(policy_freq_idx_map, ARRAY, uint32_t, uint8_t, 1024)
 
-typedef struct {
-	uint32_t policy;
-	uint32_t freq;
-} freq_idx_key;
-
-DEFINE_BPF_MAP(freq_to_idx_map, HASH, freq_idx_key, uint8_t, 2048)
+DEFINE_BPF_MAP(freq_to_idx_map, HASH, freq_idx_key_t, uint8_t, 2048)
 
 DEFINE_BPF_MAP(nr_active_map, ARRAY, uint32_t, uint32_t, 1)
 DEFINE_BPF_MAP(policy_nr_active_map, ARRAY, uint32_t, uint32_t, 1024)
@@ -114,10 +89,10 @@ int tp_sched_switch(struct switch_args* args) {
     uint8_t freq_idx = *freq_idxp - 1;
 
     uint32_t uid = bpf_get_current_uid_gid();
-    time_key key = {.uid = uid, .bucket = freq_idx / FREQS_PER_ENTRY};
-    time_in_state_val* val = bpf_uid_time_in_state_map_lookup_elem(&key);
+    time_key_t key = {.uid = uid, .bucket = freq_idx / FREQS_PER_ENTRY};
+    tis_val_t* val = bpf_uid_time_in_state_map_lookup_elem(&key);
     if (!val) {
-        time_in_state_val zero_val = {.ar = {0}};
+        tis_val_t zero_val = {.ar = {0}};
         bpf_uid_time_in_state_map_update_elem(&key, &zero_val, BPF_NOEXIST);
         val = bpf_uid_time_in_state_map_lookup_elem(&key);
     }
@@ -125,9 +100,9 @@ int tp_sched_switch(struct switch_args* args) {
     if (val) val->ar[freq_idx % FREQS_PER_ENTRY] += delta;
 
     key.bucket = nactive / CPUS_PER_ENTRY;
-    concurrent_val* ct = bpf_uid_concurrent_times_map_lookup_elem(&key);
+    concurrent_val_t* ct = bpf_uid_concurrent_times_map_lookup_elem(&key);
     if (!ct) {
-        concurrent_val zero_val = {.active = {0}, .policy = {0}};
+        concurrent_val_t zero_val = {.active = {0}, .policy = {0}};
         bpf_uid_concurrent_times_map_update_elem(&key, &zero_val, BPF_NOEXIST);
         ct = bpf_uid_concurrent_times_map_lookup_elem(&key);
     }
@@ -137,7 +112,7 @@ int tp_sched_switch(struct switch_args* args) {
         key.bucket = policy_nactive / CPUS_PER_ENTRY;
         ct = bpf_uid_concurrent_times_map_lookup_elem(&key);
         if (!ct) {
-            concurrent_val zero_val = {.active = {0}, .policy = {0}};
+            concurrent_val_t zero_val = {.active = {0}, .policy = {0}};
             bpf_uid_concurrent_times_map_update_elem(&key, &zero_val, BPF_NOEXIST);
             ct = bpf_uid_concurrent_times_map_lookup_elem(&key);
         }
@@ -159,7 +134,7 @@ int tp_cpufreq(struct cpufreq_args* args) {
     uint32_t* policyp = bpf_cpu_policy_map_lookup_elem(&cpu);
     if (!policyp) return 0;
     uint32_t policy = *policyp;
-    freq_idx_key key = {.policy = policy, .freq = new};
+    freq_idx_key_t key = {.policy = policy, .freq = new};
     uint8_t* idxp = bpf_freq_to_idx_map_lookup_elem(&key);
     if (!idxp) return 0;
     uint8_t idx = *idxp;
