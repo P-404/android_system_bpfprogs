@@ -22,12 +22,3 @@ bpf {
         "-Werror",
     ],
 }
-
-bpf {
-    name: "bpf_autoclear_maps.o",
-    srcs: ["bpf_autoclear_maps.c"],
-    cflags: [
-        "-Wall",
-        "-Werror",
-    ],
-}
