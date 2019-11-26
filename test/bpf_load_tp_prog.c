@@ -45,4 +45,6 @@ int tp_sched_switch(struct switch_args* args) {
     return 0;
 }
 
+bool _attach SEC("attach") = true;
+
 char _license[] SEC("license") = "GPL";
