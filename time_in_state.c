@@ -20,6 +20,7 @@
 DEFINE_BPF_MAP(uid_time_in_state_map, PERCPU_HASH, time_key_t, tis_val_t, 1024)
 
 DEFINE_BPF_MAP(uid_concurrent_times_map, PERCPU_HASH, time_key_t, concurrent_val_t, 1024)
+DEFINE_BPF_MAP(uid_last_update_map, HASH, uint32_t, uint64_t, 1024)
 
 DEFINE_BPF_MAP(cpu_last_update_map, PERCPU_ARRAY, uint32_t, uint64_t, 1)
 
@@ -118,6 +119,12 @@ int tp_sched_switch(struct switch_args* args) {
         }
     }
     if (ct) ct->policy[policy_nactive % CPUS_PER_ENTRY] += delta;
+    uint64_t* uid_last_update = bpf_uid_last_update_map_lookup_elem(&uid);
+    if (uid_last_update) {
+        *uid_last_update = time;
+    } else {
+        bpf_uid_last_update_map_update_elem(&uid, &time, BPF_NOEXIST);
+    }
     return 0;
 }
 
