@@ -150,4 +150,4 @@ DEFINE_BPF_PROG("tracepoint/power/cpu_frequency", AID_ROOT, AID_SYSTEM, tp_cpufr
     return 0;
 }
 
-char _license[] SEC("license") = "GPL";
+LICENSE("GPL");
