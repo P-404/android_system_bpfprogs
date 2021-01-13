@@ -17,6 +17,9 @@
 #include <bpf_helpers.h>
 #include <bpf_timeinstate.h>
 
+DEFINE_BPF_MAP_GRW(total_time_in_state_map, PERCPU_ARRAY, uint32_t, uint64_t, MAX_FREQS_FOR_TOTAL,
+                   AID_SYSTEM)
+
 DEFINE_BPF_MAP_GRW(uid_time_in_state_map, PERCPU_HASH, time_key_t, tis_val_t, 1024, AID_SYSTEM)
 
 DEFINE_BPF_MAP_GRW(uid_concurrent_times_map, PERCPU_HASH, time_key_t, concurrent_val_t, 1024, AID_SYSTEM)
@@ -106,6 +109,12 @@ DEFINE_BPF_PROG("tracepoint/sched/sched_switch", AID_ROOT, AID_SYSTEM, tp_sched_
     }
     uint64_t delta = time - old_last;
     if (val) val->ar[freq_idx % FREQS_PER_ENTRY] += delta;
+
+    // Add delta to total.
+    const uint32_t total_freq_idx = freq_idx < MAX_FREQS_FOR_TOTAL ? freq_idx :
+                                    MAX_FREQS_FOR_TOTAL - 1;
+    uint64_t* total = bpf_total_time_in_state_map_lookup_elem(&total_freq_idx);
+    if (total) *total += delta;
 
     const int pid = args->prev_pid;
     const pid_t tgid = bpf_get_current_pid_tgid() >> 32;
